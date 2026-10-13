@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>AI Response Cache</title>
+
+<style>
+:root {
+    --bg: #f4f6fb;
+    --panel: #ffffff;
+    --ink: #202b42;
+    --muted: #7d879b;
+    --blue: #5678e8;
+    --line: #e7eaf2;
+    --green: #168765;
+    --red: #b66c26;
+}
+
+* { box-sizing: border-box; }
+
+body {
+    margin: 0;
+    font-family: Inter, -apple-system, BlinkMacSystemFont,
+                 "Segoe UI", sans-serif;
+    background: var(--bg);
+    color: var(--ink);
+}
+
+button, input, textarea { font: inherit; }
+button { cursor: pointer; }
+
+.app {
+    max-width: 1200px;
+    min-height: 100vh;
+    margin: auto;
+    padding: 24px;
+}
+
+.topbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-bottom: 24px;
+}
+
+.brand {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.logo {
+    display: grid;
+    place-items: center;
+    width: 44px;
+    height: 44px;
+    border-radius: 14px;
+    background: #e5eaff;
+    color: var(--blue);
+    font-size: 25px;
+}
+
+h1 { font-size: 21px; margin: 0; }
+.subtitle { color: var(--muted); font-size: 13px; margin-top: 5px; }
+
+.nav {
+    display: flex;
+    gap: 8px;
+    padding: 5px;
+    border: 1px solid var(--line);
+    border-radius: 13px;
+    background: white;
+}
+
+.nav button {
+    border: 0;
+    background: transparent;
+    color: var(--muted);
+    border-radius: 9px;
+    padding: 10px 15px;
+}
+
+.nav button.active {
+    color: white;
+    background: var(--blue);
+}
+
+.stats {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 14px;
+    margin-bottom: 20px;
+}
+
+.stat {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 17px;
+    padding: 19px;
+}
+
+.stat-label { color: var(--muted); font-size: 13px; }
+.stat-value { font-size: 27px; font-weight: 700; margin-top: 9px; }
+
+.layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 250px;
+    gap: 18px;
+}
+
+.panel {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 20px;
+    overflow: hidden;
+}
+
+.panel-heading {
+    padding: 20px 22px;
+    border-bottom: 1px solid var(--line);
+}
+
+.panel-heading h2 { font-size: 16px; margin: 0; }
+.panel-heading p { color: var(--muted); font-size: 13px; margin: 6px 0 0; }
+
+.chat {
+    height: 430px;
+    overflow-y: auto;
+    padding: 22px;
+    display: flex;
+    flex-direction: column;
+    gap: 17px;
+}
+
+.welcome {
+    margin: auto;
+    text-align: center;
+    max-width: 370px;
+    padding: 24px 0;
+}
+
+.welcome-icon { font-size: 43px; margin-bottom: 12px; }
+.welcome h2 { font-size: 23px; margin: 0 0 9px; }
+.welcome p { color: var(--muted); line-height: 1.6; font-size: 14px; }
+
+.message { max-width: 88%; }
+.message.user { align-self: flex-end; }
+.message.assistant { align-self: flex-start; }
+
+.bubble {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    line-height: 1.65;
+    font-size: 14px;
+    padding: 13px 16px;
+    border-radius: 16px;
+}
+
+.user .bubble {
+    color: white;
+    background: var(--blue);
+    border-bottom-right-radius: 5px;
+}
+
+.assistant .bubble {
+    background: #f1f3f9;
+    border-bottom-left-radius: 5px;
+}
+
+.message-meta {
+    font-size: 11px;
+    color: var(--muted);
+    margin-top: 7px;
+}
+
+.user .message-meta { text-align: right; }
+
+.status {
+    display: inline-block;
+    border-radius: 20px;
+    padding: 4px 8px;
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: .5px;
+    margin-right: 6px;
+}
+
+.status.hit { background: #dff5ec; color: var(--green); }
+.status.miss { background: #fff0d9; color: var(--red); }
+
+.composer {
+    border-top: 1px solid var(--line);
+    padding: 17px;
+    display: flex;
+    gap: 10px;
+}
+
+.composer input {
+    min-width: 0;
+    flex: 1;
+    border: 1px solid var(--line);
+    background: #fafbfe;
+    border-radius: 13px;
+    padding: 14px;
+    outline: none;
+}
+
+.composer input:focus { border-color: var(--blue); }
+
+.primary {
+    border: 0;
+    border-radius: 12px;
+    padding: 12px 18px;
+    background: var(--blue);
+    color: white;
+    font-weight: 600;
+}
+
+.primary:disabled { opacity: .55; cursor: wait; }
+
+.side { padding: 20px; }
+.side h3 { margin: 0 0 12px; font-size: 14px; }
+.side p { font-size: 13px; color: var(--muted); line-height: 1.65; }
+.side-item { padding: 14px 0; border-bottom: 1px solid var(--line); }
+.side-item:last-child { border: 0; }
+
+.dashboard { display: none; }
+.dashboard-search {
+    padding: 17px;
+    border-bottom: 1px solid var(--line);
+}
+.dashboard-search input {
+    width: 100%;
+    padding: 12px;
+    border: 1px solid var(--line);
+    border-radius: 11px;
+    outline: none;
+}
+.cache-list { padding: 17px; display: grid; gap: 12px; }
+
+.cache-entry {
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 16px;
+    min-width: 0;
+}
+.cache-entry h3 { font-size: 14px; margin: 0 0 8px; overflow-wrap: anywhere; }
+.cache-entry p {
+    color: var(--muted);
+    font-size: 13px;
+    line-height: 1.6;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+.entry-meta { font-size: 11px; color: var(--muted); }
+.entry-actions { display: flex; gap: 8px; margin-top: 12px; }
+
+.small-button {
+    border: 1px solid var(--line);
+    background: white;
+    padding: 8px 11px;
+    border-radius: 9px;
+    color: var(--ink);
+    font-size: 12px;
+}
+.small-button.delete { color: #bd4e4e; }
+
+.empty { text-align: center; color: var(--muted); padding: 35px 15px; }
+
+footer { text-align: center; color: var(--muted); font-size: 11px; padding: 22px 0 5px; }
+.bubble strong {
+    font-weight: 700;
+}
+
+.bubble h2,
+.bubble h3 {
+    margin: 14px 0 8px;
+}
+
+.bubble hr {
+    border: 0;
+    border-top: 1px solid #d8deeb;
+    margin: 12px 0;
+}
+
+.bubble .code-block {
+    background: #202b42;
+    color: #f4f6fb;
+    padding: 14px;
+    border-radius: 10px;
+    overflow-x: auto;
+    white-space: pre;
+}
+
+.bubble code {
+    font-family: "SFMono-Regular", Consolas, monospace;
+    font-size: 13px;
+}
+@media (max-width: 760px) {
+    .app { padding: 14px; }
+    .topbar { align-items: flex-start; flex-direction: column; }
+    .nav { width: 100%; }
+    .nav button { flex: 1; padding: 10px 7px; }
+    .stats { grid-template-columns: repeat(2, 1fr); gap: 9px; }
+    .stat { padding: 14px; }
+    .stat-value { font-size: 23px; }
+    .layout { grid-template-columns: 1fr; }
+    .side { display: none; }
+    .chat { height: 55vh; min-height: 330px; }
+    .message { max-width: 96%; }
+    .composer { padding: 12px; }
+    .primary { padding: 12px; }
+}
+</style>
+</head>
+
+<body>
+<div class="app">
+
+<header class="topbar">
+    <div class="brand">
+        <div class="logo">✳</div>
+        <div>
+            <h1>AI Response Cache</h1>
+            <div class="subtitle">Intelligent response reuse</div>
+        </div>
+    </div>
+
+    <nav class="nav">
+        <button id="chatTab" class="active" onclick="showPage('chat')">AI Chat</button>
+        <button id="dashboardTab" onclick="showPage('dashboard')">Memory Dashboard</button>
+    </nav>
+</header>
+
+<section class="stats">
+    <div class="stat">
+        <div class="stat-label">Cached responses</div>
+        <div class="stat-value" id="totalCached">0</div>
+    </div>
+    <div class="stat">
+        <div class="stat-label">Cache hits</div>
+        <div class="stat-value" id="totalHits">0</div>
+    </div>
+    <div class="stat">
+        <div class="stat-label">Cache misses</div>
+        <div class="stat-value" id="totalMisses">0</div>
+    </div>
+    <div class="stat">
+        <div class="stat-label">Hit rate</div>
+        <div class="stat-value" id="hitRate">0%</div>
+    </div>
+</section>
+
+<section id="chatPage">
+    <div class="layout">
+        <div class="panel">
+            <div class="panel-heading">
+                <h2>Chat with AI</h2>
+                <p>Ask a question. The cache checks for a meaning-based match first.</p>
+            </div>
+
+            <div id="chatMessages" class="chat">
+                <div class="welcome" id="welcome">
+                    <div class="welcome-icon">✦</div>
+                    <h2>What can I help you with?</h2>
+                    <p>Ask your first question to generate and cache an AI response. Ask something similar again to test a cache hit.</p>
+                </div>
+            </div>
+
+            <form class="composer" id="chatForm">
+                <input id="messageInput" placeholder="Ask anything..." autocomplete="off" required>
+                <button class="primary" id="sendButton" type="submit">Send ↗️</button>
+            </form>
+        </div>
+
+        <aside class="panel side">
+            <h3>How it works</h3>
+            <div class="side-item">
+                <strong>01 · Semantic search</strong>
+                <p>Embeddings compare question meanings, not a hand-written keyword list.</p>
+            </div>
+            <div class="side-item">
+                <strong>02 · Cache decision</strong>
+                <p>A sufficiently similar cached answer can be reused.</p>
+            </div>
+            <div class="side-item">
+                <strong>03 · Generate & store</strong>
+                <p>If no suitable match exists, Gemini generates an answer that is cached.</p>
+            </div>
+            <div class="side-item">
+                <strong>04 · Cache management</strong>
+                <p>Track usage, update answers, delete entries and forget old low-importance items.</p>
+            </div>
+        </aside>
+    </div>
+</section>
+
+<section id="dashboardPage" class="panel dashboard">
+    <div class="panel-heading">
+        <h2>Memory Dashboard</h2>
+        <p>Review, edit or remove stored AI responses.</p>
+    </div>
+    <div class="dashboard-search">
+        <input id="dashboardSearch" placeholder="Filter cached questions..." oninput="filterCache()">
+    </div>
+    <div id="cacheList" class="cache-list">
+        <div class="empty">Loading cached responses...</div>
+    </div>
+</section>
+
+<footer>AI Response Caching System · Semantic retrieval · Flask + Gemini</footer>
+</div>
+
+<script>
+let allCacheEntries = [];
+
+function showPage(page) {
+    const chat = page === "chat";
+    document.getElementById("chatPage").style.display = chat ? "block" : "none";
+    document.getElementById("dashboardPage").style.display = chat ? "none" : "block";
+    document.getElementById("chatTab").classList.toggle("active", chat);
+    document.getElementById("dashboardTab").classList.toggle("active", !chat);
+
+    if (!chat) loadCache();
+}
+
+async function refreshStats() {
+    try {
+        const response = await fetch("/api/stats");
+        const data = await response.json();
+
+        document.getElementById("totalCached").textContent = data.total_cached;
+        document.getElementById("totalHits").textContent = data.hits;
+        document.getElementById("totalMisses").textContent = data.misses;
+        document.getElementById("hitRate").textContent = data.hit_rate + "%";
+    } catch (error) {
+        console.error("Could not load statistics:", error);
+    }
+}
+function formatMarkdown(text) {
+    const escapeHTML = (value) => value
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+
+    let html = escapeHTML(text);
+
+    html = html.replace(/```(\w*)\n([\s\S]*?)```/g,
+        (_, language, code) =>
+            `<pre class="code-block"><code>${code.trim()}</code></pre>`
+    );
+
+    html = html.replace(/^### (.+)$/gm, "<h3>$1</h3>");
+    html = html.replace(/^## (.+)$/gm, "<h2>$1</h2>");
+    html = html.replace(/^---+$/gm, "<hr>");
+    html = html.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+    html = html.replace(/`([^`]+)`/g, "<code>$1</code>");
+
+    return html.replace(/\n/g, "<br>");
+}
+function addMessage(text, role, status, similarity) {
+    const welcome = document.getElementById("welcome");
+    if (welcome) welcome.remove();
+
+    const container = document.getElementById("chatMessages");
+    const message = document.createElement("div");
+    message.className = "message " + role;
+
+    const bubble = document.createElement("div");
+    bubble.className = "bubble";
+    bubble.innerHTML = formatMarkdown(text);
+    message.appendChild(bubble);
+
+    if (role === "assistant" && status) {
+        const meta = document.createElement("div");
+        meta.className = "message-meta";
+
+        const badge = document.createElement("span");
+        badge.className = "status " + (status === "HIT" ? "hit" : "miss");
+        badge.textContent = status === "HIT" ? "CACHE HIT" : "CACHE MISS";
+
+        meta.appendChild(badge);
+
+        if (typeof similarity === "number") {
+            meta.appendChild(document.createTextNode(
+                "Similarity: " + (similarity * 100).toFixed(1) + "%"
+            ));
+        }
+
+        message.appendChild(meta);
+    }
+
+    container.appendChild(message);
+    container.scrollTop = container.scrollHeight;
+}
+
+document.getElementById("chatForm").addEventListener("submit", async function(event) {
+    event.preventDefault();
+
+    const input = document.getElementById("messageInput");
+    const button = document.getElementById("sendButton");
+    const message = input.value.trim();
+
+    if (!message) return;
+
+    addMessage(message, "user");
+    input.value = "";
+    button.disabled = true;
+    button.textContent = "Thinking…";
+
+    const waiting = document.createElement("div");
+    waiting.className = "message assistant";
+    waiting.id = "waitingMessage";
+    waiting.innerHTML = '<div class="bubble">Checking the cache and preparing a response…</div>';
+    document.getElementById("chatMessages").appendChild(waiting);
+
+    try {
+        const response = await fetch("/api/chat", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({message: message})
+        });
+
+        const data = await response.json();
+        document.getElementById("waitingMessage")?.remove();
+
+        if (!response.ok) {
+            addMessage(data.error || "Something went wrong.", "assistant");
+        } else {
+            addMessage(data.answer, "assistant", data.cache_status, data.similarity);
+        }
+
+        await refreshStats();
+
+    } catch (error) {
+        document.getElementById("waitingMessage")?.remove();
+        addMessage("Could not contact the backend. Make sure Flask is running and try again.", "assistant");
+    } finally {
+        button.disabled = false;
+        button.textContent = "Send ↗️";
+        input.focus();
+    }
+});
+
+async function loadCache() {
+    const list = document.getElementById("cacheList");
+    list.innerHTML = '<div class="empty">Loading...</div>';
+
+    try {
+        const response = await fetch("/api/cache");
+        allCacheEntries = await response.json();
+        filterCache();
+        await refreshStats();
+    } catch (error) {
+        list.innerHTML = '<div class="empty">Could not load cached responses.</div>';
+    }
+}
+
+function filterCache() {
+    const query = document.getElementById("dashboardSearch").value.toLowerCase();
+    const entries = allCacheEntries.filter(entry =>
+        entry.query.toLowerCase().includes(query) ||
+        entry.response.toLowerCase().includes(query)
+    );
+
+    const list = document.getElementById("cacheList");
+
+    if (!entries.length) {
+        list.innerHTML = '<div class="empty">No cached responses found.</div>';
+        return;
+    }
+
+    list.innerHTML = "";
+
+    entries.forEach(entry => {
+        const card = document.createElement("article");
+        card.className = "cache-entry";
+
+        const title = document.createElement("h3");
+        title.textContent = entry.query;
+
+        const answer = document.createElement("p");
+        answer.textContent = entry.response.length > 500
+            ? entry.response.slice(0, 500) + "…"
+            : entry.response;
+
+        const meta = document.createElement("div");
+        meta.className = "entry-meta";
+        meta.textContent = "Importance: " + entry.importance +
+            " · Reuses: " + entry.hits +
+            " · Created: " + new Date(entry.created_at).toLocaleString();
+
+        const actions = document.createElement("div");
+        actions.className = "entry-actions";
+
+        const edit = document.createElement("button");
+        edit.className = "small-button";
+        edit.textContent = "Edit response";
+        edit.onclick = () => editEntry(entry);
+
+        const remove = document.createElement("button");
+        remove.className = "small-button delete";
+        remove.textContent = "Delete";
+        remove.onclick = () => deleteEntry(entry.id);
+
+        actions.append(edit, remove);
+        card.append(title, answer, meta, actions);
+        list.appendChild(card);
+    });
+}
+
+async function editEntry(entry) {
+    const updated = prompt("Edit the cached response:", entry.response);
+    if (updated === null || !updated.trim()) return;
+
+    try {
+        const response = await fetch("/api/cache/update", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({id: entry.id, response: updated.trim()})
+        });
+
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.message || "Update failed.");
+
+        await loadCache();
+        alert(data.message);
+    } catch (error) {
+        alert(error.message);
+    }
+}
+
+async function deleteEntry(id) {
+    if (!confirm("Delete this cached response?")) return;
+
+    try {
+        const response = await fetch("/api/cache/delete", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({id: id})
+        });
+
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.message || "Delete failed.");
+
+        await loadCache();
+    } catch (error) {
+        alert(error.message);
+    }
+}
+
+refreshStats();
+</script>
+</body>
+</html>
